@@ -362,11 +362,17 @@ final class Tinter {
         workspace.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [unowned self] _ in
             displaysChanged()
         }
-        // An app that sets its own gamma table resets every display's when it quits.
+        // An app that sets its own gamma table resets every display's when it quits. A game entering
+        // exclusive fullscreen fades the screen in without ours while macOS still reports it, and
+        // sends no display change, so after 1 and 3 s set it again either way: nudged, then exact,
+        // since macOS skips setting the table it already holds.
         for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
             workspace.addObserver(forName: name, object: nil, queue: .main) { [unowned self] _ in
                 for delay in [0.1, 1, 3] {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in if gammaWasReset() { setGamma() } }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
+                        if gammaWasReset() { setGamma() }
+                        else if delay >= 1 && shown.levels != Look.off.levels { setGamma(nudged: delay < 3) }
+                    }
                 }
             }
         }
@@ -415,10 +421,11 @@ final class Tinter {
         setGamma()
     }
 
-    /// output = input × rgb, per channel, on every display.
-    private func setGamma() {
+    /// output = input × rgb, per channel, on every display. `nudged` sets it 0.01% darker, which
+    /// macOS doesn't skip as a repeat of the table it holds.
+    private func setGamma(nudged: Bool = false) {
         guard shown.levels != Look.off.levels else { return CGDisplayRestoreColorSyncSettings() }
-        let rgb = shown.rgb.map { CGGammaValue($0) }
+        let rgb = shown.rgb.map { CGGammaValue($0 * (nudged ? 0.9999 : 1)) }
         for id in onlineDisplays() { CGSetDisplayTransferByFormula(id, 0, rgb[0], 1, 0, rgb[1], 1, 0, rgb[2], 1) }
     }
 
