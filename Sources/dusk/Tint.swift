@@ -16,8 +16,9 @@ let longitude = -73.5674
 /// Fully red at sunset + nightShare × (9 PM − sunset), so always before 9 PM.
 let nightDeadlineHour = 21
 let nightShare = 0.75
-/// Back toward Evening when the last quarter of the time from sunset to sunrise starts.
-let morningShare = 0.25
+/// Night until one fade to Day that ends at sunrise, or at 7 AM if the sun rises later. Light before
+/// dawn delays the body clock, and after waking it helps, so there's no Evening in the morning.
+let dayDeadlineHour = 7
 let fadeLength: TimeInterval = 30 * 60
 
 /// Posted by `dusk set` and `dusk apply` so the running `dusk tint` reloads the settings.
@@ -116,9 +117,9 @@ struct Settings {
         nightUntil = nil
     }
 
-    /// Night until half an hour before the next sunrise, then a fade back into the schedule.
+    /// Night until the morning's fade to Day, then that fade.
     mutating func nightUntilSunrise(at t: Date) {
-        nightUntil = Night.around(t).sunrise - fadeLength
+        nightUntil = Night.around(t).morning
         pausedUntil = nil
     }
 
@@ -195,22 +196,24 @@ func sun(_ date: Date) -> (rise: Date, set: Date) {
 
 /// One night of the schedule, from the evening of `day`.
 struct Night {
-    let sunset, red, morning, sunrise: Date  // red: fully red; morning: the fade back starts
+    let sunset, red, morning, sunrise: Date  // red: fully red; morning: the fade to Day starts
 
     init(evening day: Date) {
         let cal = Calendar.current
+        let next = cal.date(byAdding: .day, value: 1, to: day)!
         sunset = sun(day).set
-        sunrise = sun(cal.date(byAdding: .day, value: 1, to: day)!).rise
+        sunrise = sun(next).rise
         let deadline = cal.date(bySettingHour: nightDeadlineHour, minute: 0, second: 0, of: day)!
         red = max(sunset + nightShare * deadline.timeIntervalSince(sunset), sunset)
-        morning = sunrise - morningShare * sunrise.timeIntervalSince(sunset)
+        morning = min(sunrise, cal.date(bySettingHour: dayDeadlineHour, minute: 0, second: 0, of: next)!) - fadeLength
     }
 
-    /// The night in progress, or the next one.
+    /// The night in progress (until it is Day again), or the next one.
     static func around(_ t: Date) -> Night {
         let cal = Calendar.current
         let today = cal.startOfDay(for: t)
-        return Night(evening: t < sun(today).rise ? cal.date(byAdding: .day, value: -1, to: today)! : today)
+        let last = Night(evening: cal.date(byAdding: .day, value: -1, to: today)!)
+        return t < last.morning + fadeLength ? last : Night(evening: today)
     }
 }
 
@@ -241,7 +244,7 @@ struct Schedule {
         keys = (-1...1).flatMap { offset -> [Keyframe] in
             let n = Night(evening: cal.date(byAdding: .day, value: offset, to: cal.startOfDay(for: date))!)
             return fades(.day, n.sunset - fadeLength / 2, n.sunset + fadeLength / 2, n.red - fadeLength, n.red, .night)
-                + fades(.night, n.morning, n.morning + fadeLength, n.sunrise - fadeLength, n.sunrise, .day)
+                + [.init(time: n.morning, phase: .night), .init(time: n.morning + fadeLength, phase: .day)]
         }
         edges = (keys.map(\.time) + [settings.pausedUntil, settings.nightUntil].compactMap { $0 }.flatMap { [$0, $0 + fadeLength] }).sorted()
     }

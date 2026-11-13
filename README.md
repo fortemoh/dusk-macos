@@ -3,7 +3,7 @@
 A small tool for Apple Silicon Macs with external displays (SDR), with a menu bar icon and a command line. It does two things:
 
 - **No dithering.** It stops temporal dithering, both the GPU's and the monitor's own (FRC).
-- **A warm screen at night.** A warm tint and dimming follow the sun in Montreal: a fade to Evening at sunset, to pure red before 9 PM, and back to Day by sunrise.
+- **A warm screen at night.** A warm tint and dimming follow the sun in Montreal: a fade to Evening at sunset, to pure red before 9 PM, and straight back to Day by sunrise, or by 7 AM if the sun rises later.
 
 dusk is the successor of `nodither`; `dusk install` replaces it.
 
@@ -30,14 +30,15 @@ The schedule, for Montreal (45.50° N, 73.57° W) in local time:
 
 - **Day → Evening:** a 30-minute fade centred on sunset.
 - **Evening → Night:** fully red at sunset + ¾ of the time left until 9 PM, so always before 9 PM, after a 30-minute fade. In summer the two fades overlap and merge into one.
-- **Night → Evening:** a 30-minute fade when the last quarter of the time from sunset to sunrise starts, around 3–4 AM.
-- **Evening → Day:** a 30-minute fade that ends at sunrise.
+- **Night → Day:** a 30-minute fade that ends at sunrise, or at 7 AM if the sun rises later.
 
-| | Sunset | Fully red | Red until | Sunrise |
-|---|---|---|---|---|
-| Jun 21 | 20:46 | 20:56 | 03:00 | 05:05 |
-| Oct 11 | 18:17 | 20:19 | 03:53 | 07:05 |
-| Dec 21 | 16:13 | 19:48 | 03:42 | 07:31 |
+There's no Evening in the morning. Light before dawn keeps you awake and pushes your body clock later, so the screen stays red until the morning fade. After waking, Day is what helps. 7 AM stands in for a usual wake time, as 9 PM does for bedtime, so nobody has to enter one. In Montreal the sun rises after 7 AM on about a third of the days in a year.
+
+| | Sunset | Fully red | Red until | Day | Sunrise |
+|---|---|---|---|---|---|
+| Jun 21 | 20:46 | 20:56 | 04:35 | 05:05 | 05:05 |
+| Oct 11 | 18:17 | 20:19 | 06:30 | 07:00 | 07:05 |
+| Dec 21 | 16:13 | 19:48 | 06:30 | 07:00 | 07:31 |
 
 Fades follow the clock, so after sleep the screen goes straight to where the fade should be. A fade updates the screen each time a colour channel moves one of its 256 levels, and ends exactly on the next look.
 
@@ -46,7 +47,7 @@ The menu bar icon (sun, sunset or moon) opens a menu with:
 - what's on screen now: the look or fade, and its warmth and brightness (an estimate during a fade, e.g. "about 2900 K, 88%")
 - a warmth and a brightness slider for each look, previewed live while you drag
 - Pause for 1 hour: no tint or dimming, then a 30-minute fade back into the schedule
-- Night until sunrise: Night until half an hour before sunrise, then a fade to Day
+- Night until sunrise: Night now, until the morning's fade to Day
 - Warm tint & dimming on/off, No dithering on/off
 - Reset to defaults
 - tonight's sunset, sunrise and red times
@@ -93,7 +94,7 @@ Either way, `install` copies the binary to `~/.local/bin/dusk` and loads two Lau
 | `dusk set dither on\|off` | `off` (the default) applies no dithering; `on` gives macOS back its default link and dithering |
 | `dusk set icon on\|off` | Show or hide the menu bar icon |
 | `dusk pause [minutes]` | No tint or dimming for a while (60 minutes by default), then a 30-minute fade back |
-| `dusk night` | Night until half an hour before sunrise, then a fade to Day |
+| `dusk night` | Night now, until the morning's fade to Day |
 | `dusk resume` | End a pause or night |
 | `dusk reset` | Back to the default looks |
 | `dusk apply` | Apply no dithering and the tint again now, e.g. after another app reset the colours |
@@ -114,7 +115,7 @@ Tint
   night         0 K (red), 70%
   sunset        18:17
   fully red by  20:19
-  red until     03:53
+  red until     06:30
   sunrise       07:05
   now           Day, Evening from 18:02 · 4000 K, 100%
 ```
