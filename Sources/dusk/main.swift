@@ -1,15 +1,19 @@
-// dusk: no temporal dithering on external displays, and a sun-synced warm tint (Apple Silicon, SDR).
-//   status     show dithering and the link per external display, the looks and tonight's times
-//   set        set a look's warmth (K) or brightness (%), or turn the tint, dithering or icon on or off
+// dusk: no temporal dithering on external displays, a sun-synced warm tint and HiDPI (Apple Silicon, SDR).
+//   status     show dithering, the link and the mode per external display, HiDPI's settings, the games
+//              running, the looks and tonight's times
+//   set        set a look's warmth (K) or brightness (%), turn the tint, dithering, icon, HiDPI, scaling or
+//              standard in games on or off, or mark an app as a game or not
 //   pause      no tint or dimming for a while (60 minutes by default)
 //   night      Night until sunrise
 //   resume     end a pause or night
 //   reset      the default looks
 //   apply      apply no dithering and the tint again now
 //   install    copy this binary to ~/.local/bin and load the LaunchAgents
-//   uninstall  unload them, restore the link and dithering, remove the files
+//   uninstall  unload them, restore the link and dithering, remove the files and the HiDPI modes
 //   agent      (local.dusk.display) wait for displays to settle, then apply no dithering
-//   tint       (local.dusk.tint) show the warm tint and dimming, and the menu bar icon
+//   tint       (local.dusk.tint) show the warm tint and dimming, and the menu bar icon; while a game runs
+//              (an app in front that fills a display and keeps the GPU busy), show HiDPI monitors in
+//              standard; with HiDPI on, put back monitors that lost it when monitors attach, leave or wake
 
 import Foundation
 import notify
@@ -43,7 +47,8 @@ func usage() -> Never {
            dusk set evening warmth <1200-4000 K>
            dusk set night warmth <0-2700 K>
            dusk set day|evening|night brightness <30-100 %>
-           dusk set tint|dither|icon on|off
+           dusk set tint|dither|icon|hidpi|scaling|games on|off
+           dusk set game <app> on|off|auto
            dusk pause [minutes]
            dusk night
            dusk resume
@@ -65,6 +70,17 @@ func change(_ edit: (inout Settings) -> Void) {
 
 func set(_ args: [String]) {
     switch (args.first, args.count) {
+    case ("hidpi", 2) where ["on", "off"].contains(args[1]):
+        let on = args[1] == "on"
+        change { $0.hiDPI = on }
+        on ? hiDPIOn() : hiDPIOff()
+    case ("games", 2) where ["on", "off"].contains(args[1]):
+        let on = args[1] == "on"
+        change { $0.gameStandard = on }
+    case ("game", 3) where ["on", "off", "auto"].contains(args[2]):
+        markGame(args[1], args[2])
+    case ("scaling", 2) where ["on", "off"].contains(args[1]):
+        args[1] == "on" ? scalingOn() : scalingOff()
     case (let name?, 2) where ["tint", "dither", "icon"].contains(name) && ["on", "off"].contains(args[1]):
         let on = args[1] == "on"
         change {
@@ -135,6 +151,7 @@ func uninstall() {
         try? FileManager.default.removeItem(at: agentPlist(job))
     }
     restoreDisplay()
+    removeHiDPI()
     Settings.store.removePersistentDomain(forName: "local.dusk")
     try? FileManager.default.removeItem(at: installedBinary)
     print("removed the LaunchAgents, \(installedBinary.path) and the settings")
@@ -144,6 +161,7 @@ let args = Array(CommandLine.arguments.dropFirst())
 switch args.first {
 case "status":
     displayStatus()
+    gameStatus()
     tintStatus()
 case "set": set(Array(args.dropFirst()))
 case "pause":

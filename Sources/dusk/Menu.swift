@@ -6,16 +6,16 @@ import AppKit
 private let warmthNotches: [Double] = [0, 400, 700, 1000, 1200, 1500, 1700, 1900, 2100, 2300, 2500, 2700, 3000, 3400, 3700,
                                        4000, 4300, 4600, 5000, 5500, 6000, 6500]
 private let brightnessNotches = (6...20).map { Double($0) * 0.05 }  // 30...100%
-private let linkQueue = DispatchQueue(label: "local.dusk.link")
 private let icons = ["sun.max", "sunset", "moon", "circle.slash", "pause.circle"]
 
 func runTint() -> Never {
     NSApplication.shared.setActivationPolicy(.accessory)
     let tinter = Tinter()
     let menu = StatusMenu(tinter)
+    let watcher = ModeWatcher()
     // Hand back the memory AppKit freed while starting up.
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { malloc_zone_pressure_relief(nil, 0) }
-    withExtendedLifetime((tinter, menu)) { NSApplication.shared.run() }
+    withExtendedLifetime((tinter, menu, watcher)) { NSApplication.shared.run() }
     exit(0)
 }
 
@@ -33,6 +33,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     /// The sliders' settings while the menu is open; saved when it closes.
     private var draft = Settings()
     private var edited = false
+    /// Whether every external monitor was in HiDPI when the menu opened.
+    private var hiDPI = false
 
     init(_ tinter: Tinter) {
         self.tinter = tinter
@@ -90,6 +92,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         add(menu, "Warm tint & dimming", #selector(toggleTint), on: draft.enabled)
         add(menu, "No dithering", #selector(toggleDither), on: draft.noDither)
+        hiDPI = hiDPIShown()
+        add(menu, "HiDPI", #selector(toggleHiDPI), on: hiDPI)
         add(menu, "Reset to defaults", #selector(reset))
         menu.addItem(.separator())
         let n = Night.around(t)
@@ -162,8 +166,13 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     @objc private func toggleDither() {
         tinter.change { $0.noDither.toggle() }
         let on = tinter.settings.noDither
-        // One link change at a time, in the order clicked.
-        linkQueue.async { on ? applyDisplay() : restoreDisplay() }
+        displayQueue.async { on ? applyDisplay() : restoreDisplay() }
+    }
+
+    @objc private func toggleHiDPI() {
+        let on = !hiDPI
+        tinter.change { $0.hiDPI = on }
+        displayQueue.async { on ? hiDPIOn() : hiDPIOff() }
     }
 }
 

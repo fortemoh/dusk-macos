@@ -68,6 +68,12 @@ struct Settings {
     var kelvin = presetKelvin, brightness = presetBrightness
     var enabled = true, noDither = true, icon = true
     var pausedUntil: Date?, nightUntil: Date?
+    /// `dusk set hidpi on|off` and the menu's HiDPI item: HiDPI again when a monitor comes back in standard.
+    var hiDPI = false
+    /// `dusk set games on|off`: standard instead of HiDPI while a game runs.
+    var gameStandard = true
+    /// `dusk set game <app> on|off`: apps that are games, or aren't, whatever they do.
+    var games: [String] = [], notGames: [String] = []
 
     static func load() -> Settings {
         let d = store
@@ -80,6 +86,10 @@ struct Settings {
         s.icon = d.object(forKey: "icon") as? Bool ?? true
         s.pausedUntil = d.object(forKey: "pausedUntil") as? Date
         s.nightUntil = d.object(forKey: "nightUntil") as? Date
+        s.hiDPI = d.object(forKey: "hiDPI") as? Bool ?? false
+        s.gameStandard = d.object(forKey: "gameStandard") as? Bool ?? true
+        s.games = d.stringArray(forKey: "games") ?? []
+        s.notGames = d.stringArray(forKey: "notGames") ?? []
         return s
     }
 
@@ -96,6 +106,10 @@ struct Settings {
         d.set(icon, forKey: "icon")
         d.set(pausedUntil, forKey: "pausedUntil")
         d.set(nightUntil, forKey: "nightUntil")
+        d.set(hiDPI, forKey: "hiDPI")
+        d.set(gameStandard, forKey: "gameStandard")
+        d.set(games, forKey: "games")
+        d.set(notGames, forKey: "notGames")
     }
 
     func look(_ phase: Phase) -> Look {

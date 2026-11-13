@@ -12,7 +12,7 @@ func sym<T>(_ lib: String, _ name: String, _: T.Type) -> T? {
     return unsafeBitCast(p, to: T.self)
 }
 
-private let skyLight = "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight"
+let skyLight = "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight"
 private let ioKit = "/System/Library/Frameworks/IOKit.framework/IOKit"
 
 private let SLSGetCurrentDisplayMode = sym(skyLight, "SLSGetCurrentDisplayMode",
@@ -45,6 +45,10 @@ struct LinkDescription: Equatable {
         return "\(bitDepth)-bit \(encodings[encoding] ?? "encoding \(encoding)"), \(range == 1 ? "full" : "limited") range"
     }
 }
+
+/// One link or mode change at a time in `dusk tint`, in the order asked (the monitors blank while
+/// they switch).
+let displayQueue = DispatchQueue(label: "local.dusk.display")
 
 /// Set when any step fails; becomes the exit status, which `launchctl print` shows.
 var failed = false
@@ -222,6 +226,7 @@ func displayAgent() {
 
 func displayStatus() {
     let links = currentLinks()
+    let shown = panels()
     let fbs = externalFramebuffers()
     defer { fbs.forEach { IOObjectRelease($0.service) } }
     for case let (service, monitor?) in fbs {
@@ -229,5 +234,6 @@ func displayStatus() {
         print(monitor.name)
         print("  enableDither  \(dither)")
         print("  link          \(links[monitor.id] ?? "unknown")")
+        hiDPIStatus(shown.first { Monitor.id($0.id) == monitor.id })
     }
 }
